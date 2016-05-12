@@ -40,9 +40,9 @@ addpath([my_user_path, filesep, 'matlab-tools']);
 
 % Includes other tools that are dispersed in subfolders
 
-my_addpath([my_user_path, filesep, 'matlab-tools', filesep, 'fft_tools']);
-my_addpath([my_user_path, filesep, 'matlab-tools', filesep, 'figure_tools']);
-my_addpath([my_user_path, filesep, 'matlab-tools', filesep, 'propeller_tools']);
+addpath([my_user_path, filesep, 'matlab-tools', filesep, 'fft_tools']);
+addpath([my_user_path, filesep, 'matlab-tools', filesep, 'figure_tools']);
+addpath([my_user_path, filesep, 'matlab-tools', filesep, 'propeller_tools']);
 ```
 
 # License
