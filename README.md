@@ -25,9 +25,9 @@ simply distributed for reference purposes.
 ### Other included software.
 
 I've also included software I have found useful from other's:
-  * `figure_tools/figureFullScreen.m` was written by Nikolay S. His code can be found [here](http://www.mathworks.com/matlabcentral/fileexchange/31793-minimize-maximize-figure-window).
+  * [figureFullScreen.m](figure_tools/figureFullScreen.m) was written by Nikolay S. His code can be found [here](http://www.mathworks.com/matlabcentral/fileexchange/31793-minimize-maximize-figure-window).
   * I've also included some functions from [TFOCS](http://cvxr.com/tfocs/) with their license included in their respective source files.
-    * Relevant files are in `fft_tools/PsiTransposeWFF.m` and `fft_tools/PsiWFF.m`.
+    * Relevant files are in [PsiTransposeWFF.m](fft_tools/PsiTransposeWFF.m) and [PsiWFF.m](fft_tools/PsiWFF.m).
 
 
 ## My software's license
