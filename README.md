@@ -7,8 +7,47 @@ with titles and larger fonts.
 
 If you want examples of how to use any of this, post an issue on Github.
 
-## License
 
+# Code organization
+
+Most code is written to control instruments in a programatic way.
+I think Matlab also allows you to control a few basic instrumetns but
+I like to have full control over my instruments and didn't want
+to deal with Matlab's simulink.
+
+Most instruments are controlled via a class object. Classes in Matlab
+can be included in a folder starting with an `@`. That is why
+most files `DEVICE.m` are included in a folder `@DEVICE` allowing the
+inclusion of the manual.
+
+Personally, I added this repository in my directory:
+
+  * Windows: `C:\Users\User\Documents\MATLAB\matlab-tools`
+  * Linux: `/home/mark/Documents/MATLAB/matlab-tools`
+
+To include the library in your matlab path, you probably want to add the
+following lines in your `startup.m` file.
+
+```Matlab
+if ispc
+    my_user_path = strrep(userpath, ';', '');
+else
+    my_user_path = strrep(userpath, ':', '');
+end
+
+% Includes all the instrument control tools
+addpath([my_user_path, filesep, 'matlab-tools']);
+
+% Includes other tools that are dispersed in subfolders
+
+my_addpath([my_user_path, filesep, 'matlab-tools', filesep, 'fft_tools']);
+my_addpath([my_user_path, filesep, 'matlab-tools', filesep, 'figure_tools']);
+my_addpath([my_user_path, filesep, 'matlab-tools', filesep, 'propeller_tools']);
+```
+
+# License
+
+## My code
 All my source code is licensed under the
 [BSD 3 Clause license (New BSD License or Modified BSD License)](https://en.wikipedia.org/wiki/BSD_licenses#3-clause_license_.28.22Revised_BSD_License.22.2C_.22New_BSD_License.22.2C_or_.22Modified_BSD_License.22.29).
 
