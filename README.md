@@ -12,10 +12,14 @@ If you want examples of how to use any of this, post an issue on Github.
 All my source code is licensed under the
 [BSD 3 Clause license (New BSD License or Modified BSD License)](https://en.wikipedia.org/wiki/BSD_licenses#3-clause_license_.28.22Revised_BSD_License.22.2C_.22New_BSD_License.22.2C_or_.22Modified_BSD_License.22.29).
 
-I found it time consumign to find the license of the software that I used after I had included it
-in my own directory, therefore, I added the license to each individual file at the bottom.
-Hopefully it should make it easier for you to integrate this code into your own library while
-keeping everythign legal.
+I found it time consuming to find the license of the software that I used after
+I had included it in my own directory. To make this easier for you, I added the
+license to each individual file at the bottom. Hopefully it should make it
+easier for you to integrate this code into your own library while keeping
+everything legal.
+
+That said, any file that does not include a license is still licensed under the
+[LICENSE](LICENSE) file included in this repository.
 
 ### Device manuals
 
