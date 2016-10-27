@@ -13,7 +13,7 @@ classdef InfiniiVision2000 < handle
       if nargin < 2; ModelCode_hex = ['0x', dec2hex(6041, 4)];      end
       if nargin < 3; SerialNumber_str = 'MY52011887';               end
       if nargin < 4; InterfaceNumber_str = num2str(0);              end
-
+      
       self.usb_str_name = ...
         ['USB0::', ManufacturerID_hex, '::', ModelCode_hex, '::', ...
          SerialNumber_str, '::', InterfaceNumber_str, '::INSTR'];
@@ -48,7 +48,7 @@ classdef InfiniiVision2000 < handle
     function send(self, s)
       fprintf(self.scope_handle, s);
     end
-
+    
     function r = receive(self)
       r = fscanf(self.scope_handle, '%s');
     end
@@ -56,20 +56,24 @@ classdef InfiniiVision2000 < handle
       self.send(s);
       r = self.receive();
     end
-
+    
+    function r = identify(self)
+       r = self.query('*IDN?');
+    end
+    
     function err = check_instrument_errors(self)
       err_raw = self.query(':SYSTem:ERRor?');
       [err_num, err_str] = strtok(err_raw, ',');
       err_num = str2double(err_num);
       err_str(1) = []; % remove the ,
       err_str(1) = []; % remote the "
-      err_str(end) = []; % remove the new line
+      %err_str(end) = []; % remove the new line
       err_str(end) = []; % remove the "
-
+      
       err.num = err_num;
       err.str = err_str;
     end
-
+    
     function errs = check_all_instrument_errors(self)
       errs = {};
       while true
@@ -77,20 +81,20 @@ classdef InfiniiVision2000 < handle
         if this_err.num == 0
           break
         end
-
+        
         errs{end+1} = this_err;
       end
-
+      
       if ~isempty(errs)
         fprintf('There were %d errors from the scope. Please check them and fix the MATLAB code', length(errs));
       end
     end
-
+    
     function edge_trigger(self, source, slope, level)
       self.send(':TRIGger:MODE Edge');
-      self.send([':TRIGger:EDGE:SOURce ', source]);
-      self.send([':TRIGger:EDGE:SLOPe ', slope]);
-      self.send(sprintf(':TRIGger:EDGE:LEVel %e', level));
+      if nargin > 1; self.send([':TRIGger:EDGE:SOURce ', source]); end
+      if nargin > 2; self.send([':TRIGger:EDGE:SLOPe ', slope]); end
+      if nargin > 3; self.send(sprintf(':TRIGger:EDGE:LEVel %e', level)); end
     end
 
     function position = timebasePosition(self, position)
@@ -98,15 +102,15 @@ classdef InfiniiVision2000 < handle
       % If one argument is given, then the position is set
       % If no arguments are given, then the position is queried
       if nargin < 2
-        position = str2double(query(self.scope_handle, ':TIMebase:POSition?'));
+        position = str2double(self.query(':TIMebase:POSition?'));
       else
         self.send([':TIMebase:POSition ', num2str(position, '%e')]);
       end
     end
-
+    
     function holdoff = holdOffTime(self, holdoff)
       if nargin < 2
-        holdoff = str2double(query(self.scope_handle, ':TRIGger:HOLDoff?'));
+        holdoff = str2double(self.query(':TRIGger:HOLDoff?'));
       else
         self.send([':TRIGger:HOLDoff ', num2str(holdoff, '%e')]);
       end
@@ -116,7 +120,7 @@ classdef InfiniiVision2000 < handle
       % If one argument is given, then the position is set
       % If no arguments are given, then the position is queried
       if nargin < 2
-        range = str2double(query(self.scope_handle, ':TIMebase:RANGe?'));
+        range = str2double(self.query(':TIMebase:RANGe?'));
       else
         self.send([':TIMebase:RANGe ', num2str(range, '%e')]);
       end
@@ -130,30 +134,30 @@ classdef InfiniiVision2000 < handle
       self.send(sprintf(':TIMebase:RANGe %e', actual_period));
       self.send(sprintf(':TIMebase:POSition %e', actual_period/2));
     end
-
+    
     function autorange(self, source, vmin_search, vmax_search, extent_multiplier)
       if nargin < 3; vmin_search = -20; end
       if nargin < 4; vmax_search = +20; end
       if nargin < 5; extent_multiplier = 1.2; end
-
+      
       self.setVoltageExtent(source, vmin_search, vmax_search);
       pause(1);
       [vmin, vmax] = self.getVoltageExtent(source);
-
+      
       v_mean =  (vmax + vmin) / 2;
       v_delta = (vmax - vmin) / 2;
       vmin = v_mean - v_delta*extent_multiplier;
       vmax = v_mean + v_delta*extent_multiplier;
-
+      
       self.setVoltageExtent(source, vmin, vmax);
       pause(1);
     end
-
+    
     function [vmin, vmax] = getVoltageExtent(self, source)
       vmax = str2double(self.query(sprintf([':MEASure:VMAX? ', source])));
       vmin = str2double(self.query(sprintf([':MEASure:VMIN? ', source])));
     end
-
+    
     function setVoltageExtent(self, source, vmin, vmax, range_multiplier)
       if nargin < 5
         range_multiplier = 1.1;
@@ -161,33 +165,53 @@ classdef InfiniiVision2000 < handle
       self.send(sprintf(':%s:RANGe %e V', source, (vmax - vmin) * range_multiplier));
       self.send(sprintf(':%s:OFFSet %e V', source, (vmax + vmin) /2));
     end
-
+    
+    function screen_data = getScreen(self, format, palette)
+       if nargin < 2; format = 'PNG'; end;
+       if nargin < 3; palette = 'COLor'; end;
+       
+       self.send([':DISPlay:DATA? ', format, ', ', palette]);
+       screen_data = binblockread(self.scope_handle, 'uint8');
+       fread(self.scope_handle, 1); %read the termination character
+    end
     function saveScreen(self, filename, format, palette)
-      if nargin < 3
-        format = 'PNG';
-      end
-      if nargin < 4
-        palette = 'COLor';
-      end
-
-
-      self.send([':DISPlay:DATA? ', format, ', ', palette]);
-      screen_data = binblockread(self.scope_handle, 'uint8');
-      fread(self.scope_handle, 1); %read the termination character
-
+      if nargin < 3; format = 'PNG'; end
+      if nargin < 4; palette = 'COLor'; end
+      screen_data = self.getScreen(format, palette);
+      
       fid = fopen(filename, 'wb');
       fwrite(fid, screen_data);
       fclose(fid);
     end
+    function sampled_traces = singleTraceSampled(self, sources, N_samples)
+       if nargin < 2; sources = {}; sources{1} = 'CHANnel1'; end
+       if nargin < 3; N_samples = 1; end
+       
+       waveforms = self.singleTrace(sources);
+       if length(sources) == 1;
+          w = waveforms;
+          waveforms = {};
+          waveforms{1} = w;
+          clear w;
+       end
+       i_samp = round(linspace(1, length(waveforms{1}.XData), N_samples+1));
+       i_samp(end) = [];
 
+       i_samp = round(i_samp + mean(diff(i_samp)/2));
+       sampled_traces = zeros(length(sources), N_samples);
+       for i = 1:length(sources)
+         sampled_traces(i, :) = waveforms{i}.YData(i_samp);   
+       end
+    end
+    
+    function completed = operationCompleted(self)
+       completed = str2double(self.query('*OPC?'));
+    end
     function waveforms = singleTrace(self, sources)
-      if nargin < 2
-        sources = {};
-        sources{1} = 'CHANnel1';
-      end
+      if nargin < 2; sources = {}; sources{1} = 'CHANnel1'; end
+      if ~iscell(sources); s = sources; sources = {}; sources{1} = s; clear s; end;
 
       self.send(':Timebase:MODE Main'); % set timebase
-      %self.send(':Acquire:TYPE Normal'); % set acquisition type
       self.send(':ACQuire:TYPE HRESolution');
       self.send(':WAVeform:points MAXimum'); % sets number of points to be read up to 4e6
       s = [':DIGitize ', sources{1}];
@@ -196,9 +220,9 @@ classdef InfiniiVision2000 < handle
       end
       self.send(s); %':DIGitize CHANnel1');
 
-      operationComplete = str2double(query(self.scope_handle, '*OPC?')); % wait until digitization of waveform is donebefore moving on
+      operationComplete = str2double(self.query('*OPC?')); % wait until digitization of waveform is donebefore moving on
       while ~operationComplete
-          operationComplete = str2double(query(self.scope_handle, '*OPC?'));
+          operationComplete = str2double(self.query('*OPC?'));
       end
 
       waveforms = cell(size(sources));
@@ -208,12 +232,12 @@ classdef InfiniiVision2000 < handle
         % Specify how the data should be sent to the computer
         self.send([':WAVeform:SOURce ', sources{i}]); %select channel
 
-        self.send(':WAVeform:POINts:MODE RAW'); % allows the full buffer to be read
-
+        self.send(':WAVeform:POINts:MODE normal'); % allows the full buffer to be read
+        
         self.send(':WAVeform:FORMat word'); % get data back as word
         self.send(':WAVeform:UNSigned ON');
         self.send(':WAVeform:BYTeorder LSBFirst');
-        preambleBlock = query(self.scope_handle, 'WAVeform:preamble?');
+        preambleBlock = self.query(':WAVeform:preamble?');
 
         % Now send commmand to read data
         self.send(':WAV:DATA?');
@@ -238,37 +262,14 @@ classdef InfiniiVision2000 < handle
 
         %  split the preambleBlock into individual pieces of info
         preambleBlock = regexp(preambleBlock,',','split');
+        waveforms{i}.preamble = self.analyzePreamble(preambleBlock);
 
-
-        % Store it all for future use
-        waveforms{i}.preable.Format = str2double(preambleBlock{1});
-        % FORMAT : int16 - 0 = BYTE, 1 = WORD, 4 = ASCII.
-        waveforms{i}.preable.Type = str2double(preambleBlock{2});
-        % TYPE : int16 - 0 = NORMAL, 1 = PEAK DETECT, 2 = AVERAGE
-        waveforms{i}.preable.Points = str2double(preambleBlock{3});
-        % POINTS: int32 - number of data points transferred.
-        waveforms{i}.preable.Count = str2double(preambleBlock{4});      % This is always 1
-        % COUNT: int32 - 1 and is always 1.
-        waveforms{i}.preable.XIncrement = str2double(preambleBlock{5}); % in seconds
-        % XINCREMENT: float64 - time difference between data points.
-        waveforms{i}.preable.XOrigin = str2double(preambleBlock{6});    % in seconds
-        % XORIGIN: float64 - always the first data point in memory.
-        waveforms{i}.preable.XReference = str2double(preambleBlock{7});
-        % XREFERENCE: int32 - specifies the data point associated with x-origin.
-        waveforms{i}.preable.YIncrement = str2double(preambleBlock{8}); % V
-        % YINCREMENT: float32 - voltage diff between data points.
-        waveforms{i}.preable.YOrigin = str2double(preambleBlock{9});
-        % YORIGIN: float32 - value is the voltage at center screen.
-        waveforms{i}.preable.YReference = str2double(preambleBlock{10});
-        % YREFERENCE: int32 - specifies the data point where y-origin occurs.
-        %waveform1.preable = InifiiVision2000.analyzePreamble(preambleBlock);
-
-        waveforms{i}.Offset = ((maxVal/2 - waveforms{i}.preable.YReference) * waveforms{i}.preable.YIncrement + waveforms{i}.preable.YOrigin);         % V
-        waveforms{i}.Delay = ((waveforms{i}.preable.Points/2 - waveforms{i}.preable.XReference) * waveforms{i}.preable.XIncrement + waveforms{i}.preable.XOrigin); % seconds
+        waveforms{i}.Offset = ((maxVal/2 - waveforms{i}.preamble.YReference) * waveforms{i}.preamble.YIncrement + waveforms{i}.preamble.YOrigin);         % V
+        waveforms{i}.Delay = ((waveforms{i}.preamble.Points/2 - waveforms{i}.preamble.XReference) * waveforms{i}.preamble.XIncrement + waveforms{i}.preamble.XOrigin); % seconds
 
         % Generate X & Y Data
-        waveforms{i}.XData = ((waveforms{i}.preable.XIncrement.*(0:(length(waveforms{i}.RawData)-1))) + waveforms{i}.preable.XOrigin)';
-        waveforms{i}.YData = (waveforms{i}.preable.YIncrement.*(waveforms{i}.RawData - waveforms{i}.preable.YReference)) + waveforms{i}.preable.YOrigin;
+        waveforms{i}.XData = ((waveforms{i}.preamble.XIncrement.*(0:(length(waveforms{i}.RawData)-1))) + waveforms{i}.preamble.XOrigin)';
+        waveforms{i}.YData = (waveforms{i}.preamble.YIncrement.*(waveforms{i}.RawData - waveforms{i}.preamble.YReference)) + waveforms{i}.preamble.YOrigin;
       end
       % TODO: get errors
       self.send(':RUN');
@@ -276,36 +277,181 @@ classdef InfiniiVision2000 < handle
         waveforms = waveforms{1};
       end
     end % getSingleTrace
-    %{
-    function preamble = analyzePreamble(preable_str)
+    
+    
+    function waveforms = singleTraceAverage(self, sources, NAverage)
+      if nargin < 2; sources = {}; sources{1} = 'CHANnel1'; end
+      if nargin < 3; NAverage = 16; end
+      if ~iscell(sources); s = sources; sources = {}; sources{1} = s; clear s; end;
+      
+      self.send(':Timebase:Mode Main'); % set timebase
+      self.send(':Acquire:Type AVERage'); % set acquisition type
+      self.send([':Acquire:COUNt ', num2str(NAverage, '%.0d')]);% set number of acquisitions when in averaging mode
+      self.send(':ACQuire:COMPlete 100');
+      self.send(':Waveform:points maximum');
+      
+      s = [':DIGitize ', sources{1}];
+      for i = 2:length(sources)
+        s = [s, ',', sources{i}];
+      end
+      self.send(s); %':DIGitize CHANnel1');
+
+      while ~self.operationCompleted()
+      end
+      
+      waveforms = cell(size(sources));
+      for i = 1:length(sources)
+        waveforms{i}.source_name = sources{i};
+
+        % Specify how the data should be sent to the computer
+        self.send([':WAVeform:SOURce ', sources{i}]); %select channel
+
+        % Normal has to be selected to read from averaged data.
+        self.send(':WAVeform:POINts:MODE normal');
+        
+        self.send(':WAVeform:FORMat word'); % get data back as word
+        self.send(':WAVeform:UNSigned ON');
+        self.send(':WAVeform:BYTeorder LSBFirst');
+
+        % Now send commmand to read data
+        self.send(':WAV:DATA?');
+        % Special meaning values:
+        % 0x0000 - Hole: locations where data was not acquired
+        % 0x0001 - clipped low
+        % 0xFFFF - clipped high
+
+
+        % read back the BINBLOCK with the data in specified format and store it in
+        % the waveform structure.
+        % binblockread seems to read in lsbfirst
+        waveforms{i}.RawData = binblockread(self.scope_handle, 'uint16');
+        %FREAD removes the extra terminator in the buffer
+        fread(self.scope_handle, 1);
+
+        % extract the data
+        preambleBlock = self.query(':WAVeform:PREamble?');
+        waveforms{i}.preamble = self.analyzePreamble(preambleBlock);
+
+        % Maximum value storable in a INT16
+        maxVal = intmax('uint16'); %2^16;
+        waveforms{i}.Offset = ((maxVal/2 - waveforms{i}.preamble.YReference) * waveforms{i}.preamble.YIncrement + waveforms{i}.preamble.YOrigin);         % V
+        waveforms{i}.Delay = ((waveforms{i}.preamble.Points/2 - waveforms{i}.preamble.XReference) * waveforms{i}.preamble.XIncrement + waveforms{i}.preamble.XOrigin); % seconds
+
+        % Generate X & Y Data
+        waveforms{i}.XData = ((waveforms{i}.preamble.XIncrement.*(0:(length(waveforms{i}.RawData)-1))) + waveforms{i}.preamble.XOrigin)';
+        waveforms{i}.YData = (waveforms{i}.preamble.YIncrement.*(waveforms{i}.RawData - waveforms{i}.preamble.YReference)) + waveforms{i}.preamble.YOrigin;
+      end
+      
+      % TODO: get errors
+      self.send(':Acquire:Type AVERage'); % set acquisition type
+      self.send([':Acquire:COUNt ', num2str(NAverage, '%.0d')]);% set number of acquisitions when in averaging mode
+      self.send(':RUN');
+      if length(waveforms) == 1
+        waveforms = waveforms{1};
+      end
+    end
+    
+    
+    function preamble = analyzePreamble(self, preamble_str)
+
+        %  split the preambleBlock into individual pieces of info
+        preambleBlock = regexp(preamble_str,',','split');
+
+
+        % Store it all for future use
+        preamble.Format = str2double(preambleBlock{1});
+        % FORMAT : int16 - 0 = BYTE, 1 = WORD, 4 = ASCII.
+        preamble.Type = str2double(preambleBlock{2});
+        % TYPE : int16 - 0 = NORMAL, 1 = PEAK DETECT, 2 = AVERAGE
+        preamble.Points = str2double(preambleBlock{3});
+        % POINTS: int32 - number of data points transferred.
+        preamble.Count = str2double(preambleBlock{4});      % This is always 1
+        % COUNT: int32 - 1 and is always 1.
+        preamble.XIncrement = str2double(preambleBlock{5}); % in seconds
+        % XINCREMENT: float64 - time difference between data points.
+        preamble.XOrigin = str2double(preambleBlock{6});    % in seconds
+        % XORIGIN: float64 - always the first data point in memory.
+        preamble.XReference = str2double(preambleBlock{7});
+        % XREFERENCE: int32 - specifies the data point associated with x-origin.
+        preamble.YIncrement = str2double(preambleBlock{8}); % V
+        % YINCREMENT: float32 - voltage diff between data points.
+        preamble.YOrigin = str2double(preambleBlock{9});
+        % YORIGIN: float32 - value is the voltage at center screen.
+        preamble.YReference = str2double(preambleBlock{10});
+        % YREFERENCE: int32 - specifies the data point where y-origin occurs.
 
     end % analyze preamble
-    %}
+    % Wavegen commands
+    
+    
+    function wavegen_output_enable(self)
+       self.wavegen_output(1);
+    end
+    function wavegen_output_disable(self)
+       self.wavegen_output(0);
+    end
+    function o = wavegen_output(self, o)
+       if nargin < 2
+          o = str2double(self.query(':WGEN:OUTPUT?'));
+       else
+          if o; o = 1; else o = 0; end
+          self.send([':WGEN:OUTPUT ', num2str(o)]);
+       end
+    end
+    function p = wavegen_period(self, p)
+       if nargin < 2
+          p = str2double(self.query(':WGEN:PERiod?'));
+       else
+          self.send([':WGEN:PERiod ', num2str(p, '%e')]);
+       end
+    end
+    
+    function f = wavegen_frequency(self, f)
+       if nargin < 2
+          f = str2double(self.query(':WGEN:FREQuency?'));
+       else
+          self.send([':WGEN:FREQuency ', num2str(f, '%e')]);
+       end
+    end
+    function f = wavegen_function(self, f)
+       % f allowed 
+       % {SINusoid | SQUare | RAMP | PULSe | NOISe | DC}
+       if nargin < 2
+          f = self.query(':WGEN:FUNCtion?');
+       else
+          self.send([':WGEN:FUNCtion ', f]);
+       end
+    end
+    function impedance = wavegen_output_load(self, impedance)
+       % allowable values are <impedance> ::= {ONEMeg | FIFTy}
+       if nargin < 2
+          impedance = self.query(':WGEN:OUTPut:LOAD?');
+       else
+          self.send([':WGEN:OUTPut:LOAD ', impedance]);
+       end
+    end
+    function v = wavegen_voltage_high(self, v)
+       if nargin < 2
+          v = str2double(self.query(':WGEN:VOLTage:HIGH?'));
+       else
+          self.send([':WGEN:VOLTage:HIGH ', num2str(v, '%e')]);
+       end
+    end
+    function v = wavegen_voltage_low(self, v)
+       if nargin < 2
+          v = str2double(self.query(':WGEN:VOLTage:LOW?'));
+       else
+          self.send([':WGEN:VOLTage:LOW ', num2str(v, '%e')]);
+       end
+    end
+    
+    function acq = acquire_type(self, acq)
+       % <type> ::= {NORMal | AVERage | HRESolution | PEAK}
+       if nargin < 2
+          acq = self.query(':ACQuire:TYPE?');
+       else
+          self.send([':ACQuire:TYPE ', acq]);
+       end
+    end
   end % methods
 end
-%{
-Copyright (c) 2016, Mark Harfouche
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of the Mark Harfouche nor the
-      names of his/her contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL Mark Harfouche BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-%}
